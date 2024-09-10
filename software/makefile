@@ -24,7 +24,7 @@ FUSE7    = 0x00
 FUSE8    = 0x00
 
 # Programmer Settings
-PROGRMR ?= serialupdi
+PROGRMR ?= atmelice_updi
 PORT    ?= /dev/ttyUSB0
 
 # Toolchain
@@ -33,7 +33,7 @@ OBJCOPY  = avr-objcopy
 OBJDUMP  = avr-objdump
 AVRSIZE  = avr-size
 PYPROG   = python3 -u ./tools/pymcuprog/prog.py -t uart -u $(PORT) -b 230400 -d $(DEVICE)
-AVRDUDE  = avrdude -C ./tools/avrdude/avrdude.conf -c $(PROGRMR) -P $(PORT) -p $(DEVICE)
+AVRDUDE  = avrdude -c $(PROGRMR) -p $(DEVICE)
 CLEAN    = rm -f *.lst *.obj *.cof *.list *.map *.eep.hex *.o *.s *.d
 
 # Compiler Flags

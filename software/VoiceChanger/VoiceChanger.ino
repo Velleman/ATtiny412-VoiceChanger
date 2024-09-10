@@ -67,11 +67,6 @@
 #define PITCH_MIN     63          // minimum value for audio pitch
 #define PITCH_MAX     183         // maximum value for audio pitch
 
-//Robot on/off SPEED
-#define ROBOT_SPEED_START 30
-#define ROBOT_SPEED_MIN 10
-#define ROBOT_SPEED_MAX 50
-
 // Pin manipulation macros
 enum {PA0, PA1, PA2, PA3, PA4, PA5, PA6, PA7};      // enumerate pin designators
 #define pinInput(x)       VPORTA.DIR &= ~(1<<(x))   // set pin to INPUT
@@ -86,8 +81,7 @@ enum {PA0, PA1, PA2, PA3, PA4, PA5, PA6, PA7};      // enumerate pin designators
 // ===================================================================================
 // Ring Buffer Implementation
 // ===================================================================================
-uint8_t RobotOn = false;
-bool toggleOutput = false;
+
 #define BUF_LEN       192                       // buffer length
 volatile uint8_t BUF_buffer[BUF_LEN];           // this is the buffer
 volatile uint8_t BUF_head, BUF_tail;            // head and tail pointer
@@ -95,8 +89,6 @@ volatile uint8_t BUF_head, BUF_tail;            // head and tail pointer
 // Push byte to ring buffer
 void BUF_push(uint8_t data) {
   if(++BUF_head >= BUF_LEN) BUF_head = 0;       // increase head pointer
-  if(data >= 124 && data <= 131)
-      data = 127;
   BUF_buffer[BUF_head] = data;                  // push data byte to buffer
 }
 
@@ -168,7 +160,7 @@ void TCB_setPitch(uint8_t value) {
 // Timer interrupt service routine
 ISR(TCB0_INT_vect) {
   TCB0.INTFLAGS = TCB_CAPT_bm;                  // clear interrupt flag
-  DAC_set(toggleOutput ?BUF_pop() : 127);                           // set DAC value from buffer
+  DAC_set(BUF_pop());                           // set DAC value from buffer
 }
 
 // ===================================================================================
@@ -187,21 +179,6 @@ void BUT_init(void) {
   pinPullup(PIN_SLCT);                          // enable internal pullup resistor
 }
 
-void TCA_init(){
-	TCA0.SINGLE.CTRLA = TCA_SINGLE_CLKSEL_DIV1024_gc | TCA_SINGLE_ENABLE_bm;  // Prescaler 1024
-    TCA0.SINGLE.PER = (4000000 / 1024 / 30) - 1;  // Set period for 30 Hz
-    TCA0.SINGLE.INTCTRL = TCA_SINGLE_OVF_bm;  // Enable overflow interrupt
-}
-
-
-ISR(TCA0_OVF_vect) {
-    TCA0.SINGLE.INTFLAGS = TCA_SINGLE_OVF_bm;  // Clear the interrupt flag
-	if(RobotOn){
-		toggleOutput = !toggleOutput;	
-	}else{
-		toggleOutput = true;
-	}
-}
 // ===================================================================================
 // Main Function
 // ===================================================================================
@@ -215,53 +192,29 @@ int main(void) {
   DAC_init();                                   // init DAC
   ADC_init();                                   // init ADC
   TCB_init();                                   // Init TCB
-  TCA_init();
   sei();                                        // enable interrupts
   uint8_t pitch = PITCH_START;                  // set initial pitch value
-  uint8_t RobotSpeed = ROBOT_SPEED_START;
+
   // Loop
   while(1) {
     // Check buttons
     uint8_t butread = pinRead(PIN_UP);          // check UP button
     if(butread != butlast_up) {
-		if(RobotOn){
-      if(!butread && (RobotSpeed >= ROBOT_SPEED_MIN)) {
-        RobotSpeed -= 2;
-        TCA0.SINGLE.PER = (4000000 / 1024 / RobotSpeed) - 1;
-      }
-		}else{
       if(!butread && (pitch >= PITCH_MIN)) {
-        pitch -= 10;
+        pitch -= 20;
         TCB_setPitch(pitch);
       }
-		}
       butlast_up = butread;
       _delay_ms(10);
     }
 
     butread = pinRead(PIN_DOWN);                // check DOWN button
     if(butread != butlast_down) {
-      if(RobotOn){
-        if(!butread && (RobotSpeed <= PITCH_MAX)) {
-        RobotSpeed += 2;
-        TCA0.SINGLE.PER = (4000000 / 1024 / RobotSpeed) - 1;
-        }
-      }else{
       if(!butread && (pitch <= PITCH_MAX)) {
-        pitch += 10;
+        pitch += 20;
         TCB_setPitch(pitch);
       }
-      }
       butlast_down = butread;
-      _delay_ms(10);
-    }   
-	
-	butread = pinRead(PIN_SLCT);                // check DOWN button
-    if(butread != butlast_slct) {
-      if(!butread) {
-        RobotOn = !RobotOn;
-      }
-      butlast_slct = butread;
       _delay_ms(10);
     }   
   }
